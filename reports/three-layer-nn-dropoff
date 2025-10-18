@@ -1,0 +1,69 @@
+import pandas as pd
+import os
+
+# Load the CSV file
+file_path = "/root/.cache/kagglehub/datasets/marwandiab/cookie-catsdataset/versions/1/cookie_cats.csv"
+df = pd.read_csv(file_path)
+
+# Quick look at the data
+df.head()
+
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
+
+# Encode version (gate_30 → 0, gate_40 → 1)
+le = LabelEncoder()
+df['version'] = le.fit_transform(df['version'])
+
+# Drop userid since it’s not useful
+df = df.drop(columns=['userid'])
+
+# Define features and target (you can switch between retention_1 or retention_7)
+X = df[['version', 'sum_gamerounds']]
+y = df['retention_7'].astype(int)
+
+# Scale the numeric data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y
+)
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+
+model = Sequential([
+    Dense(64, activation='relu', input_shape=(X_train.shape[1],)),
+    Dropout(0.2),
+    Dense(32, activation='relu'),
+    Dropout(0.1),
+    Dense(16, activation='relu'),
+    Dense(1, activation='sigmoid')
+])
+
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.summary()
+from tensorflow.keras.callbacks import EarlyStopping
+
+early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_test, y_test),
+    epochs=100,
+    batch_size=64,
+    callbacks=[early_stop],
+    verbose=1
+)
+
+import matplotlib.pyplot as plt
+
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.title('Model Training Accuracy')
+plt.show()
